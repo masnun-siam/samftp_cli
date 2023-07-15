@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Install script for samftp.py on macOS
+# Install script for samftp on macOS
 
 # Step 1: Install Python if not already installed
 # TODO: Add commands to check and install Python if needed
@@ -12,9 +12,9 @@ pip install --user pyfzf~=0.3.1
 
 # Step 3: Copy the script to the desired location
 DESTINATION_FOLDER="$HOME/.local/bin"
-cp "samftp.py" $DESTINATION_FOLDER
+cp "samftp" $DESTINATION_FOLDER
 
 # Step 4: Add the shebang for Python 3 to the script
-sed -i '' '1s|^|#!/usr/bin/env python3\n|' $DESTINATION_FOLDER/samftp.py
+sed -i '' '1s|^|#!/usr/bin/env python3\n|' $DESTINATION_FOLDER/samftp
 
 echo Installation completed.

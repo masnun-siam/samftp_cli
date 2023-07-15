@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Install script for samftp.py on Linux
+# Install script for samftp on Linux
 
 # Step 1: Install Python if not already installed
 # TODO: Add commands to check and install Python if needed
@@ -12,11 +12,11 @@ pip install --user pyfzf~=0.3.1
 
 # Step 3: Copy the script to the desired location
 DESTINATION_FOLDER="$HOME/.local/bin"
-cp "samftp.py" $DESTINATION_FOLDER
+cp "samftp" $DESTINATION_FOLDER
 
 # Step 4: Add the shebang for Python 3 to the script
 PYTHON_PATH=$(which python3)
-sed -i "1s|^|#!$PYTHON_PATH\n|" $DESTINATION_FOLDER/samftp.py
+sed -i "1s|^|#!$PYTHON_PATH\n|" $DESTINATION_FOLDER/samftp
 
 # Step 5: Add the script to the system PATH
 echo "export PATH=\"$PATH:$DESTINATION_FOLDER\"" >> ~/.bashrc
