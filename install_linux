@@ -1,0 +1,37 @@
+#!/bin/bash
+
+# Install script for samftp.py on Linux
+
+# Step 1: Install Python if not already installed
+# TODO: Add commands to check and install Python if needed
+
+# Step 2: Install required packages using pip
+pip install --user requests~=2.26.0
+pip install --user beautifulsoup4==4.12.2
+pip install --user pyfzf~=0.3.1
+
+# Step 3: Copy the script to the desired location
+DESTINATION_FOLDER="$HOME/.local/bin"
+cp "samftp.py" $DESTINATION_FOLDER
+
+# Step 4: Add the shebang for Python 3 to the script
+PYTHON_PATH=$(which python3)
+sed -i "1s|^|#!$PYTHON_PATH\n|" $DESTINATION_FOLDER/samftp.py
+
+# Step 5: Add the script to the system PATH
+echo "export PATH=\"$PATH:$DESTINATION_FOLDER\"" >> ~/.bashrc
+source ~/.bashrc
+
+# Step 6: Export path in Zsh config if installed
+if [ -n "$(command -v zsh)" ]; then
+  echo "export PATH=\"$PATH:$DESTINATION_FOLDER\"" >> ~/.zshrc
+  source ~/.zshrc
+fi
+
+# Step 7: Export path in Fish config if installed
+if [ -n "$(command -v fish)" ]; then
+  echo "set -x PATH $PATH $DESTINATION_FOLDER" >> ~/.config/fish/config.fish
+  source ~/.config/fish/config.fish
+fi
+
+echo Installation completed.
