@@ -11,7 +11,7 @@ def select_server(servers: List[Server]) -> Server:
         print(f"  \033[1;32;40m{i + 1}. {server.name}\033[0m")
     
     while True:
-        choice = input(f"\\nEnter your choice (1-{len(servers)}, q to quit): ")
+        choice = input(f"\nEnter your choice (1-{len(servers)}, q to quit): ")
         if choice.lower() == 'q':
             print("Exiting...")
             exit(0)
@@ -51,7 +51,7 @@ def browse_directory(folders: List[Folder], files: List[File]) -> Tuple[str, int
     _print_menu(folders, files)
     items = folders + files
     
-    choice = input(f"\\nEnter your choice (0-{len(items) - 1}, s to search, p to play all, q to quit): ")
+    choice = input(f"\nEnter your choice (0-{len(items) - 1}, s to search, p to play all, q to quit): ")
     
     if choice.lower() == 'q':
         return "quit", None
