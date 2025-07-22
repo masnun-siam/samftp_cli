@@ -51,7 +51,7 @@ def browse_directory(folders: List[Folder], files: List[File]) -> Tuple[str, int
     _print_menu(folders, files)
     items = folders + files
     
-    choice = input(f"\nEnter your choice (0-{len(items) - 1}, s to search, p to play all, q to quit): ")
+    choice = input(f"\nEnter your choice (0-{len(items) - 1}, s to search, p to play all, d to download all, q to quit): ")
     
     if choice.lower() == 'q':
         return "quit", None
@@ -59,6 +59,9 @@ def browse_directory(folders: List[Folder], files: List[File]) -> Tuple[str, int
     if choice.lower() == 'p':
         play_all_videos(files)
         return "refresh", None
+
+    if choice.lower() == 'd':
+        return "download", None
 
     if choice.lower() == 's':
         try:

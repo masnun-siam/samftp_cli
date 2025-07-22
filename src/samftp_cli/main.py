@@ -1,5 +1,6 @@
+import os
 from .config import load_servers_from_env
-from .ftp_client import fetch_html, parse_html
+from .ftp_client import fetch_html, parse_html, download_all_files
 from .ui import select_server, browse_directory
 from .player import play_file
 from .data_models import Folder, File
@@ -27,6 +28,10 @@ def main():
             break
         
         if action == "refresh":
+            continue
+
+        if action == "download":
+            download_all_files(files, os.getcwd())
             continue
 
         if action == "select" and selected_index is not None:
