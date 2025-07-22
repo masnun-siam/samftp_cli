@@ -1,5 +1,6 @@
 import requests
 import os
+import sys
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 from typing import List, Tuple
@@ -46,7 +47,7 @@ def parse_html(base_url: str, response_html: bytes) -> Tuple[List[Folder], List[
 
 
 def download_file(file: File, destination_dir: str = ".") -> bool:
-    """Downloads a single file to the specified directory."""
+    """Downloads a single file to the specified directory with progress tracking."""
     try:
         response = requests.get(file.url, stream=True)
         response.raise_for_status()
@@ -56,19 +57,57 @@ def download_file(file: File, destination_dir: str = ".") -> bool:
         # Create directory if it doesn't exist
         os.makedirs(destination_dir, exist_ok=True)
         
+        # Get file size for progress tracking
+        total_size = int(response.headers.get('content-length', 0))
+        downloaded_size = 0
+        
         with open(file_path, 'wb') as f:
             for chunk in response.iter_content(chunk_size=8192):
                 if chunk:
                     f.write(chunk)
+                    downloaded_size += len(chunk)
+                    
+                    # Show progress
+                    if total_size > 0:
+                        progress = (downloaded_size / total_size) * 100
+                        bar_length = 30
+                        filled_length = int(bar_length * downloaded_size // total_size)
+                        bar = '█' * filled_length + '-' * (bar_length - filled_length)
+                        
+                        # Format file size
+                        def format_size(size):
+                            for unit in ['B', 'KB', 'MB', 'GB']:
+                                if size < 1024.0:
+                                    return f"{size:.1f} {unit}"
+                                size /= 1024.0
+                            return f"{size:.1f} TB"
+                        
+                        sys.stdout.write(f'\r  [{bar}] {progress:.1f}% ({format_size(downloaded_size)}/{format_size(total_size)})')
+                        sys.stdout.flush()
+                    else:
+                        # If no content-length header, just show downloaded size
+                        def format_size(size):
+                            for unit in ['B', 'KB', 'MB', 'GB']:
+                                if size < 1024.0:
+                                    return f"{size:.1f} {unit}"
+                                size /= 1024.0
+                            return f"{size:.1f} TB"
+                        
+                        sys.stdout.write(f'\r  Downloading... {format_size(downloaded_size)}')
+                        sys.stdout.flush()
         
-        print(f"Downloaded: {file.name}")
+        # Clear progress line and show completion
+        sys.stdout.write('\r' + ' ' * 80 + '\r')  # Clear the line
+        print(f"✓ Downloaded: {file.name}")
         return True
         
     except requests.RequestException as e:
-        print(f"Error downloading {file.name}: {e}")
+        sys.stdout.write('\r' + ' ' * 80 + '\r')  # Clear the line
+        print(f"✗ Error downloading {file.name}: {e}")
         return False
     except OSError as e:
-        print(f"Error saving {file.name}: {e}")
+        sys.stdout.write('\r' + ' ' * 80 + '\r')  # Clear the line
+        print(f"✗ Error saving {file.name}: {e}")
         return False
 
 
