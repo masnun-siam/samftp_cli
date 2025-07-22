@@ -7,7 +7,7 @@ name = "samftp-cli"
 version = "0.1.0"
 description = "A CLI to browse and play media from SAM-FTP servers."
 authors = [
-    { name = "Your Name", email = "you@example.com" }
+    { name = "Masnun Siam", email = "echo@msiamn.dev" }
 ]
 dependencies = [
     "requests>=2.28.0",
