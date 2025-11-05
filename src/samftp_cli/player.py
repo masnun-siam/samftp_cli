@@ -2,10 +2,19 @@ import subprocess
 import tempfile
 import shutil
 from typing import List, Optional
+from rich.console import Console
+from rich.prompt import Prompt
 from .data_models import File
 
-VIDEO_EXTENSIONS = ('.mp4', '.avi', '.mov', '.mkv')
-IMAGE_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.gif')
+console = Console()
+
+VIDEO_EXTENSIONS = ('.mp4', '.avi', '.mov', '.mkv', '.webm', '.flv', '.m4v')
+IMAGE_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.svg', '.webp')
+AUDIO_EXTENSIONS = ('.mp3', '.flac', '.m4a', '.wav', '.ogg', '.aac')
+
+# Session-level player cache
+_session_player = None
+
 
 def get_available_players() -> List[str]:
     """Returns a list of available media players on the system."""
@@ -16,117 +25,319 @@ def get_available_players() -> List[str]:
             available.append(player)
     return available
 
-def select_media_player() -> Optional[str]:
-    """Prompts the user to select a media player."""
+
+def get_player_preference(force_prompt: bool = False, override: Optional[str] = None) -> Optional[str]:
+    """
+    Get player preference with multiple fallback options.
+
+    Priority:
+    1. Override parameter (from --player flag)
+    2. Session-level cache (already selected this session)
+    3. Saved preference in config
+    4. Prompt user
+
+    Args:
+        force_prompt: Force user to select player even if preference exists
+        override: Override player selection
+
+    Returns:
+        Selected player name or None
+    """
+    global _session_player
+
+    # Priority 1: Override
+    if override:
+        available_players = get_available_players()
+        if override in available_players:
+            _session_player = override
+            return override
+        else:
+            console.print(f"[yellow]Warning: Player '{override}' not available, falling back to preference[/yellow]")
+
+    # Priority 2: Session cache
+    if not force_prompt and _session_player:
+        return _session_player
+
+    # Priority 3: Saved preference
+    if not force_prompt:
+        from .config import get_default_player
+        saved_player = get_default_player()
+        if saved_player:
+            available_players = get_available_players()
+            if saved_player in available_players:
+                _session_player = saved_player
+                return saved_player
+            else:
+                console.print(f"[yellow]Saved player '{saved_player}' not available, please select another[/yellow]")
+
+    # Priority 4: Prompt user
+    return select_media_player()
+
+
+def select_media_player(save_preference: bool = True) -> Optional[str]:
+    """
+    Prompts the user to select a media player.
+
+    Args:
+        save_preference: If True, save selection to config
+
+    Returns:
+        Selected player name or None
+    """
+    global _session_player
+
     available_players = get_available_players()
-    
+
     if not available_players:
-        print("Error: No supported media players found. Please install mpv, VLC, or IINA.")
+        console.print("[red]Error: No supported media players found.[/red]")
+        console.print("[dim]Please install mpv, VLC, or IINA.[/dim]")
         return None
-    
+
     if len(available_players) == 1:
-        print(f"Using {available_players[0]} (only available player)")
+        console.print(f"[cyan]Using {available_players[0]} (only available player)[/cyan]")
+        _session_player = available_players[0]
         return available_players[0]
-    
-    print("Select a media player:")
+
+    console.print("\n[bold]Select a media player:[/bold]")
     for i, player in enumerate(available_players):
-        print(f"  {i + 1}. {player}")
-    
+        console.print(f"  [cyan]{i + 1}. {player}[/cyan]")
+
     while True:
         try:
-            choice = input(f"\nEnter your choice (1-{len(available_players)}): ")
+            choice = Prompt.ask(f"\n[bold]Enter your choice[/bold] (1-{len(available_players)})")
             index = int(choice) - 1
             if 0 <= index < len(available_players):
-                return available_players[index]
+                selected = available_players[index]
+                _session_player = selected
+
+                if save_preference:
+                    from .config import set_default_player
+                    should_save = Prompt.ask(
+                        f"[bold]Save {selected} as default player?[/bold]",
+                        choices=["y", "n"],
+                        default="y"
+                    )
+                    if should_save.lower() == 'y':
+                        if set_default_player(selected):
+                            console.print(f"[green]✓ Saved {selected} as default player[/green]")
+
+                return selected
             else:
-                print("Invalid choice. Please try again.")
+                console.print("[red]Invalid choice. Please try again.[/red]")
         except (ValueError, KeyboardInterrupt):
-            print("Invalid choice. Please try again.")
+            console.print("[red]Invalid choice. Please try again.[/red]")
 
-def play_file_with_mpv(file: File):
-    """Plays a single media file using mpv."""
-    if file.url.endswith(IMAGE_EXTENSIONS):
-        subprocess.Popen(["mpv", "--loop-file=inf", file.url], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    elif file.url.endswith(VIDEO_EXTENSIONS):
-        subprocess.run(['mpv', file.url])
 
-def play_file_with_vlc(file: File):
-    """Plays a single media file using VLC."""
+def change_player():
+    """Allow user to change player mid-session."""
+    global _session_player
+    console.print("\n[bold cyan]Change Media Player[/bold cyan]")
+    _session_player = None  # Clear session cache
+    return select_media_player(save_preference=True)
+
+
+def play_file_with_mpv(file: File, background: bool = True):
+    """
+    Plays a single media file using mpv.
+
+    Args:
+        file: File to play
+        background: If True, play in background (non-blocking)
+    """
     if file.url.endswith(IMAGE_EXTENSIONS):
-        # VLC can display images but doesn't have a loop option like mpv
-        subprocess.Popen(["vlc", file.url], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    elif file.url.endswith(VIDEO_EXTENSIONS):
+        subprocess.Popen(
+            ["mpv", "--loop-file=inf", file.url],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+    elif file.url.endswith(VIDEO_EXTENSIONS + AUDIO_EXTENSIONS):
+        if background:
+            subprocess.Popen(
+                ['mpv', file.url],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
+        else:
+            subprocess.run(['mpv', file.url])
+
+
+def play_file_with_vlc(file: File, background: bool = True):
+    """
+    Plays a single media file using VLC.
+
+    Args:
+        file: File to play
+        background: If True, play in background (non-blocking)
+    """
+    if background:
+        subprocess.Popen(
+            ["vlc", file.url],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+    else:
         subprocess.run(['vlc', file.url])
 
-def play_file_with_iina(file: File):
-    """Plays a single media file using IINA."""
-    if file.url.endswith(IMAGE_EXTENSIONS):
-        subprocess.Popen(["iina", file.url], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    elif file.url.endswith(VIDEO_EXTENSIONS):
+
+def play_file_with_iina(file: File, background: bool = True):
+    """
+    Plays a single media file using IINA.
+
+    Args:
+        file: File to play
+        background: If True, play in background (non-blocking)
+    """
+    if background:
+        subprocess.Popen(
+            ["iina", file.url],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+    else:
         subprocess.run(['iina', file.url])
 
-def play_file(file: File):
-    """Plays a single media file using the selected media player."""
-    player = select_media_player()
-    if not player:
-        return
-    
-    print(f"Playing {file.name} with {player}...")
-    
-    if player == 'mpv':
-        play_file_with_mpv(file)
-    elif player == 'vlc':
-        play_file_with_vlc(file)
-    elif player == 'iina':
-        play_file_with_iina(file)
 
-def play_all_videos_with_mpv(files: List[File]):
-    """Creates a temporary playlist file and plays all videos in mpv."""
-    video_files = [f.url for f in files if f.url.endswith(VIDEO_EXTENSIONS)]
+def play_file(file: File, player: Optional[str] = None, background: bool = True):
+    """
+    Plays a single media file using the selected media player.
+
+    Args:
+        file: File to play
+        player: Optional player override
+        background: If True, play in background (non-blocking)
+    """
+    selected_player = player or get_player_preference()
+    if not selected_player:
+        return
+
+    console.print(f"[cyan]▶ Playing[/cyan] [bold]{file.name}[/bold] [dim]with {selected_player}[/dim]")
+
+    if selected_player == 'mpv':
+        play_file_with_mpv(file, background)
+    elif selected_player == 'vlc':
+        play_file_with_vlc(file, background)
+    elif selected_player == 'iina':
+        play_file_with_iina(file, background)
+
+    if background:
+        console.print("[dim]Playing in background, you can continue browsing...[/dim]")
+
+
+def play_all_videos_with_mpv(files: List[File], background: bool = True):
+    """
+    Creates a temporary playlist file and plays all videos in mpv.
+
+    Args:
+        files: List of files to play
+        background: If True, play in background (non-blocking)
+    """
+    video_files = [f.url for f in files if f.url.endswith(VIDEO_EXTENSIONS + AUDIO_EXTENSIONS)]
     if not video_files:
-        print("No video files to play.")
+        console.print("[yellow]No media files to play.[/yellow]")
         return
 
     with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix=".m3u") as playlist:
         playlist.write('\n'.join(video_files))
         playlist_name = playlist.name
 
-    print(f"Playing {len(video_files)} videos with mpv...")
-    try:
+    console.print(f"[cyan]▶ Playing {len(video_files)} files with mpv...[/cyan]")
+
+    if background:
+        subprocess.Popen(
+            ['mpv', f'--playlist={playlist_name}'],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+        console.print("[dim]Playing in background, you can continue browsing...[/dim]")
+    else:
         subprocess.run(['mpv', f'--playlist={playlist_name}'])
-    finally:
-        # The playlist file is left in temp for inspection, OS will clean it up
-        pass
 
-def play_all_videos_with_vlc(files: List[File]):
-    """Plays all videos in VLC by passing multiple URLs as arguments."""
-    video_files = [f.url for f in files if f.url.endswith(VIDEO_EXTENSIONS)]
+
+def play_all_videos_with_vlc(files: List[File], background: bool = True):
+    """
+    Plays all videos in VLC by passing multiple URLs as arguments.
+
+    Args:
+        files: List of files to play
+        background: If True, play in background (non-blocking)
+    """
+    video_files = [f.url for f in files if f.url.endswith(VIDEO_EXTENSIONS + AUDIO_EXTENSIONS)]
     if not video_files:
-        print("No video files to play.")
+        console.print("[yellow]No media files to play.[/yellow]")
         return
 
-    print(f"Playing {len(video_files)} videos with VLC...")
-    subprocess.run(['vlc'] + video_files)
+    console.print(f"[cyan]▶ Playing {len(video_files)} files with VLC...[/cyan]")
 
-def play_all_videos_with_iina(files: List[File]):
-    """Plays all videos in IINA by passing multiple URLs as arguments."""
-    video_files = [f.url for f in files if f.url.endswith(VIDEO_EXTENSIONS)]
+    if background:
+        subprocess.Popen(
+            ['vlc'] + video_files,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+        console.print("[dim]Playing in background, you can continue browsing...[/dim]")
+    else:
+        subprocess.run(['vlc'] + video_files)
+
+
+def play_all_videos_with_iina(files: List[File], background: bool = True):
+    """
+    Plays all videos in IINA by passing multiple URLs as arguments.
+
+    Args:
+        files: List of files to play
+        background: If True, play in background (non-blocking)
+    """
+    video_files = [f.url for f in files if f.url.endswith(VIDEO_EXTENSIONS + AUDIO_EXTENSIONS)]
     if not video_files:
-        print("No video files to play.")
+        console.print("[yellow]No media files to play.[/yellow]")
         return
 
-    print(f"Playing {len(video_files)} videos with IINA...")
-    subprocess.run(['iina'] + video_files)
+    console.print(f"[cyan]▶ Playing {len(video_files)} files with IINA...[/cyan]")
 
-def play_all_videos(files: List[File]):
-    """Creates a playlist and plays all videos using the selected media player."""
-    player = select_media_player()
-    if not player:
+    if background:
+        subprocess.Popen(
+            ['iina'] + video_files,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+        console.print("[dim]Playing in background, you can continue browsing...[/dim]")
+    else:
+        subprocess.run(['iina'] + video_files)
+
+
+def play_all_videos(files: List[File], player: Optional[str] = None, background: bool = True):
+    """
+    Creates a playlist and plays all videos using the selected media player.
+
+    Args:
+        files: List of files to play
+        player: Optional player override
+        background: If True, play in background (non-blocking)
+    """
+    selected_player = player or get_player_preference()
+    if not selected_player:
         return
-    
-    if player == 'mpv':
-        play_all_videos_with_mpv(files)
-    elif player == 'vlc':
-        play_all_videos_with_vlc(files)
-    elif player == 'iina':
-        play_all_videos_with_iina(files) 
+
+    if selected_player == 'mpv':
+        play_all_videos_with_mpv(files, background)
+    elif selected_player == 'vlc':
+        play_all_videos_with_vlc(files, background)
+    elif selected_player == 'iina':
+        play_all_videos_with_iina(files, background)
+
+
+def is_media_file(filename: str) -> bool:
+    """Check if filename is a supported media file."""
+    return filename.lower().endswith(VIDEO_EXTENSIONS + IMAGE_EXTENSIONS + AUDIO_EXTENSIONS)
+
+
+def get_file_type(filename: str) -> Optional[str]:
+    """Get file type (video, audio, image) from filename."""
+    filename_lower = filename.lower()
+    if filename_lower.endswith(VIDEO_EXTENSIONS):
+        return "video"
+    elif filename_lower.endswith(AUDIO_EXTENSIONS):
+        return "audio"
+    elif filename_lower.endswith(IMAGE_EXTENSIONS):
+        return "image"
+    return None
