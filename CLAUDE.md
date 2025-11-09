@@ -21,7 +21,7 @@ SAM-FTP CLI is a modern command-line tool for browsing and playing media files f
 ### Running
 - **Interactive browser**: `samftp`
 - **With options**: `samftp --server "Movies" --player mpv`
-- **TUI mode**: `samftp --tui` (experimental)
+- **TUI mode**: `samftp --tui` (fully functional graphical terminal interface)
 - **Configuration wizard**: `samftp config`
 - **Show help**: `samftp --help`
 
@@ -151,12 +151,19 @@ The application was significantly refactored in Phase 1 with the following impro
    - **Duplicate detection**: Prevents duplicate bookmark names
    - Uses platformdirs for cross-platform config location
 
-9. **tui.py**: Textual-based TUI (NEW, experimental)
+9. **tui.py**: Textual-based TUI (FULLY FUNCTIONAL)
    - **Framework**: Built with Textual for rich terminal UI
-   - **Basic skeleton**: Server list, bookmarks sidebar, file browser
-   - **Keyboard shortcuts**: q (quit), r (refresh), b (bookmarks), h (help)
-   - **Future expansion**: Full mouse support, async loading, context menus
-   - Note: CLI mode is fully functional; TUI is a framework for future development
+   - **Features**: Server list, bookmarks sidebar, file browser with icons
+   - **Async operations**: Full async directory loading with HTTP session management
+   - **Navigation**: Click servers to browse, navigate folders, play media files
+   - **Authentication**: Full HTTP Basic Auth support
+   - **Search**: Real-time file/folder filtering with search bar
+   - **Keyboard shortcuts**: q (quit), r (refresh), b (bookmarks), h (help), / (search)
+   - **File type icons**: 📁 folders, ▶️ videos, 🎵 audio, 🖼️ images, 📄 files
+   - **Error handling**: Graceful error notifications with detailed messages
+   - **Cache integration**: Uses cache manager for performance
+   - **Bookmark navigation**: Click bookmarks to jump to saved locations
+   - Note: Both CLI and TUI modes are fully functional with complete Phase 1 features
 
 ### Key Design Patterns
 
